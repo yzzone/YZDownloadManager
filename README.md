@@ -22,7 +22,7 @@ pod 'YZDownloadManager'
 
 ## Author
 
-zone1026, huangyazhou@offcn.com
+zone1026, 1024105345@qq.com
 
 ## License
 
