@@ -177,7 +177,6 @@
         NSParameterAssert(localPath);
         return;
     }
-    
 }
 
 @end
