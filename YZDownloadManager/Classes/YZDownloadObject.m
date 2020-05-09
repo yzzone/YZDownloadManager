@@ -136,7 +136,7 @@
         case YZDownloadStateDownloading: { // 开启下载工作
             // 扩展下载类型时，记得在这里实现具体的【下载】处理逻辑
             if ([self.yz_downloadModel yz_checkInsideDownloaderCanDownloadFileType] == YES) {
-                [self startBreakPointDownloadURL:dowloadUrl toLocal:localPath];
+                [self startBreakPointDownloadURL:dowloadUrl withLocalPath:localPath];
             } else {
 #warning 扩展其他平台的下载器
             }
@@ -147,7 +147,7 @@
             // 扩展下载类型时，记得在这里实现具体的【暂停下载】处理逻辑
             if ([self.yz_downloadModel yz_checkInsideDownloaderCanDownloadFileType] == YES) {
                 if ([YZDownloadUtils yz_stringEmptyOrNull:dowloadUrl] == NO) {
-                    [[BPNetWorkService shared] cancelUrlString:url];
+                   
                 }
             } else {
                 #warning 扩展其他平台的下载器
@@ -177,65 +177,6 @@
         NSParameterAssert(localPath);
         return;
     }
-    
-    @try {
-        __weak typeof(self) weakSelf = self;
-        BPDownloadContent *aContent = [[BPDownloadContent alloc] init];
-        aContent.urlString = url;
-        aContent.cacheFilePath = localPath;
-        [[BPNetWorkService shared] downloadContent:aContent onProgress:^(int64_t completeBytes, int64_t totalBytes) {
-            weakSelf.downloadModel.current_size = (NSInteger)completeBytes;
-            if (weakSelf.downloadModel.total_size <= 0 && totalBytes > 0) { // 第一次接收到数据时保存数据到数据库
-                weakSelf.downloadModel.total_size = (NSInteger)totalBytes;
-                [weakSelf.downloadModel updateModel2Database]; // 更新数据库数据
-            } else {
-                weakSelf.downloadModel.total_size = (NSInteger)totalBytes;
-            }
-
-            dispatch_async(dispatch_get_main_queue(), ^{
-                for (id<CODownloadObjectDelegate> delegate in weakSelf.allDelegates) {
-                    if ([delegate respondsToSelector:@selector(updateCells)]) {
-                        [delegate updateCells];
-                    }
-                }
-            });
-        } onComplete:^(BPDownloadContent* aContent, NSError *error) {
-            dispatch_async(dispatch_get_main_queue(), ^{
-                [[UIApplication sharedApplication] setIdleTimerDisabled:NO]; //自动锁屏
-            });
-            if (error == nil) {
-                NSLog(@"操作完成\n已存储：%@", aContent.cacheFilePath);
-                if (weakSelf.downloadModel.total_size <= 0) {
-                    weakSelf.downloadModel.total_size = aContent.serverFileSize;
-                }
-                if (weakSelf.downloadModel.current_size <= 0) {
-                    weakSelf.downloadModel.current_size = (NSInteger)[BPFileManager getLengthForFilePath:[weakSelf.downloadModel
-                                                                                                          getLocalDownloadFullPath]];
-                }
-                weakSelf.downloadModel.down_state = stateCompleted;
-                weakSelf.downloadModel.down_date = [SZUtil getTimeNow];
-                [[CODownloadManager sharedInstance] co_syncDownRecordForDownloadModel:weakSelf.downloadModel];
-            }
-            else if (error.code == -999) { }  // 取消或暂停
-            else if (error.code == -1005) { } // 网络连接已中断 在网络切换时发生
-            else if (error.code == -1009) { } // 似乎已断开与互联网的连接 在断网时发生
-            else {
-                weakSelf.downloadModel.down_state = stateInterupt;
-                NSLog(@"Download Error: %@", error);
-            }
-            [[CODownloadManager sharedInstance] co_completeDownload:weakSelf];
-            [weakSelf.downloadModel updateModel2Database]; // 更新数据库数据
-            //下载结束更新缓存管理状态
-            [[NSNotificationCenter defaultCenter] postNotificationName:NotiUpdateDownloadInfo object:nil];
-            dispatch_async(dispatch_get_main_queue(), ^{
-                for (id<CODownloadObjectDelegate> delegate in weakSelf.allDelegates) {
-                    if ([delegate respondsToSelector:@selector(updateCells)]) {
-                        [delegate updateCells];
-                    }
-                }
-            });
-        }];
-    } @catch (NSException *exception) { }
 }
 
 @end
